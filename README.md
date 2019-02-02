@@ -2,7 +2,8 @@
 
 Binpretty is a small tool to view the content of mixed binary/plaintext files.
 
-![Binpretty showing a tar archive of this repository.](https://raw.githubusercontent.com/mortie/binpretty/master/img/screenshot-1.png)
+![binpretty showing a tar archive of this repository](https://raw.githubusercontent.com/mortie/binpretty/master/img/screenshot-1.png)
+> binpretty showing a tar archive of this repository
 
 ## Rationale
 
