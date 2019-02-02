@@ -15,6 +15,8 @@ viewers isn't very nice either.
 
 	binpretty [file]...
 
+You may want to pipe the output to `less -R`.
+
 ## Install
 
 Just `git clone` this repo and run `make && sudo make install`. There are no
