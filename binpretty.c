@@ -12,7 +12,7 @@ static void color(FILE *out, char *col) {
 	static char *currcol = NULL;
 	if (col != currcol) {
 		currcol = col;
-		fprintf(out, col);
+		fputs(col, out);
 	}
 }
 
@@ -21,7 +21,7 @@ static void initline(FILE *out, size_t bytenum) {
 	fprintf(out, "%.8X ", (unsigned int)bytenum);
 }
 
-static int pretty(FILE *in, FILE *out) {
+static int pretty(FILE *in, FILE *out, size_t linewidth) {
 	unsigned char buf[4096];
 
 	size_t bytenum = 0;
@@ -62,7 +62,7 @@ static int pretty(FILE *in, FILE *out) {
 				linechar += 3;
 			}
 
-			if (linechar >= 80) {
+			if (linechar >= linewidth) {
 				fprintf(out, "\n");
 				initline(out, bytenum);
 				linechar = 0;
@@ -70,6 +70,7 @@ static int pretty(FILE *in, FILE *out) {
 		}
 
 		if (cnt < sizeof(buf)) {
+			color(out, COL_RESET);
 			fprintf(out, "\n");
 			if (ferror(in)) {
 				perror("read");
@@ -96,36 +97,78 @@ FILE *openfile(char *str) {
 }
 
 int main(int argc, char **argv) {
-	if (argc == 2 && (
-			strcmp(argv[1], "-h") == 0 ||
-			strcmp(argv[1], "--help") == 0)) {
-		printf("Usage: %s [files]...\n", argv[0]);
-		return EXIT_SUCCESS;
+	int linewidth = 80;
+	int use_pager = 0;
+
+	int i;
+	for (i = 1; i < argc; ++i) {
+		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+			printf("Usage: %s [options] [files]...\n", argv[0]);
+			printf("Options:\n");
+			printf("    -h, --help:      Show this help text\n");
+			printf("    --linewidth [n]: Line width\n");
+			printf("    --pager:         Show in pager\n");
+			return 0;
+		} else if (strcmp(argv[i], "--linewidth") == 0 && i < argc - 1) {
+			linewidth = atoi(argv[++i]);
+		} else if (strcmp(argv[i], "--pager") == 0) {
+			use_pager = 1;
+		} else if (strcmp(argv[i], "--") == 0 || argv[i][0] != '-') {
+			break;
+		} else {
+			fprintf(stderr, "Unknown argument: '%s'\n", argv[i]);
+			return 1;
+		}
 	}
+
+	char **files = argv + i;
+	size_t filecount = argc - i ;
 
 	FILE *outfile = stdout;
 
+	// Show pager?
+	if (use_pager) {
+		const char *pager = getenv("PAGER");
+		if (pager == NULL || pager[0] == '\0') {
+			pager = "less -R";
+		}
+
+		outfile = popen(pager, "w");
+		if (outfile == NULL) {
+			perror(pager);
+			return 1;
+		}
+	}
+
 	// If we get no arguments, or just one file as an argument,
 	// just prettify that one file
-	if (argc <= 2) {
-		FILE *infile = argc == 1 ? stdin : openfile(argv[1]);
+	if (filecount <= 1) {
+		FILE *infile = filecount == 0 ? stdin : openfile(files[0]);
 		if (infile == NULL) return EXIT_FAILURE;
-		if (pretty(infile, outfile) < 0)
+		if (pretty(infile, outfile, linewidth) < 0)
 			return EXIT_FAILURE;
 
 	// If we get more than one file,
 	// loop trhough them, printing their names before their content
 	} else {
-		for (int i = 1; i < argc; ++i) {
+		for (size_t i = 0; i < filecount; ++i) {
 			if (i == 0)
-				printf("%s:\n", argv[i]);
+				printf("%s:\n", files[i]);
 			else
-				printf("\n%s:\n", argv[i]);
+				printf("\n%s:\n", files[i]);
 
-			FILE *infile = openfile(argv[i]);
+			FILE *infile = openfile(files[i]);
 			if (infile == NULL) return EXIT_FAILURE;
-			if (pretty(infile, outfile) < 0)
+			if (pretty(infile, outfile, linewidth) < 0)
 				return EXIT_FAILURE;
 		}
 	}
+
+	if (use_pager) {
+		pclose(outfile);
+	} else {
+		fclose(outfile);
+	}
+
+	return 0;
 }
